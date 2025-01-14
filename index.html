@@ -1,62 +1,139 @@
-<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
-  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-  <meta http-equiv="Content-Style-Type" content="text/css">
-  <title></title>
-  <meta name="Generator" content="Cocoa HTML Writer">
-  <meta name="CocoaVersion" content="2566">
-  <style type="text/css">
-    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
-    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebRTC Cast Receiver</title>
+    <style>
+        /* Add basic styling for video display */
+        video {
+            width: 100%;
+            height: auto;
+        }
+    </style>
 </head>
 <body>
-<p class="p1">&lt;!DOCTYPE html&gt;</p>
-<p class="p1">&lt;html&gt;</p>
-<p class="p1">&lt;head&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;title&gt;Chromecast WebRTC Receiver&lt;/title&gt;</p>
-<p class="p1">&lt;/head&gt;</p>
-<p class="p1">&lt;body&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;script src="//www.gstatic.com/cast/sdk/libs/cast_receiver/3/cast_receiver.js"&gt;&lt;/script&gt;</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;script&gt;</p>
-<p class="p1"><span class="Apple-converted-space">    </span>const context = cast.framework.CastReceiverContext.getInstance();</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>let peerConnection;</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Start the Cast Receiver</p>
-<p class="p1"><span class="Apple-converted-space">    </span>context.start();</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">    </span>// Handle custom messages for WebRTC signaling</p>
-<p class="p1"><span class="Apple-converted-space">    </span>context.addCustomMessageListener('urn:x-cast:webrtc', (event) =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">      </span>const message = event.data;</p>
-<p class="p1"><span class="Apple-converted-space">      </span>if (message.type === 'offer') {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>// Create PeerConnection and set remote description</p>
-<p class="p1"><span class="Apple-converted-space">        </span>peerConnection = new RTCPeerConnection();</p>
-<p class="p1"><span class="Apple-converted-space">        </span>peerConnection.setRemoteDescription(new RTCSessionDescription(message));</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>// Create an answer and send it back to the sender</p>
-<p class="p1"><span class="Apple-converted-space">        </span>peerConnection.createAnswer().then((answer) =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>peerConnection.setLocalDescription(answer);</p>
-<p class="p1"><span class="Apple-converted-space">          </span>context.sendCustomMessage('urn:x-cast:webrtc', event.senderId, answer);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>});</p>
-<p class="p2"><br></p>
-<p class="p1"><span class="Apple-converted-space">        </span>// Handle incoming video stream</p>
-<p class="p1"><span class="Apple-converted-space">        </span>peerConnection.ontrack = (event) =&gt; {</p>
-<p class="p1"><span class="Apple-converted-space">          </span>const videoElement = document.createElement('video');</p>
-<p class="p1"><span class="Apple-converted-space">          </span>videoElement.srcObject = event.streams[0];</p>
-<p class="p1"><span class="Apple-converted-space">          </span>videoElement.autoplay = true;</p>
-<p class="p1"><span class="Apple-converted-space">          </span>videoElement.style.width = '100%';</p>
-<p class="p1"><span class="Apple-converted-space">          </span>videoElement.style.height = '100%';</p>
-<p class="p1"><span class="Apple-converted-space">          </span>document.body.appendChild(videoElement);</p>
-<p class="p1"><span class="Apple-converted-space">        </span>};</p>
-<p class="p1"><span class="Apple-converted-space">      </span>} else if (message.type === 'ice-candidate') {</p>
-<p class="p1"><span class="Apple-converted-space">        </span>// Add ICE candidate</p>
-<p class="p1"><span class="Apple-converted-space">        </span>peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));</p>
-<p class="p1"><span class="Apple-converted-space">      </span>}</p>
-<p class="p1"><span class="Apple-converted-space">    </span>});</p>
-<p class="p1"><span class="Apple-converted-space">  </span>&lt;/script&gt;</p>
-<p class="p1">&lt;/body&gt;</p>
-<p class="p1">&lt;/html&gt;</p>
+    <h1>WebRTC Cast Receiver</h1>
+    <video id="remoteVideo" autoplay playsinline></video>
+    <button id="castButton">Cast to TV</button>
+
+    <script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js"></script>
+
+    <script>
+        const signalingServerUrl = 'ws://localhost:8080'; // WebSocket server URL (signaling server)
+        const videoElement = document.getElementById('remoteVideo');
+        const castButton = document.getElementById('castButton');
+
+        // Initialize Google Cast API
+        function initializeCastApi() {
+            cast.framework.CastContext.getInstance().setOptions({
+                receiverApplicationId: cast.framework.receiver.ApplicationId.DEFAULT
+            });
+            castButton.addEventListener('click', () => {
+                cast.framework.CastContext.getInstance().requestSession();
+            });
+        }
+
+        // WebSocket Connection
+        const socket = new WebSocket(signalingServerUrl);
+        socket.onopen = () => {
+            console.log('Connected to signaling server');
+        };
+
+        socket.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            handleSignalingMessage(message);
+        };
+
+        socket.onclose = () => {
+            console.log('Disconnected from signaling server');
+        };
+
+        // WebRTC Peer Connection Setup
+        let peerConnection;
+
+        function createPeerConnection() {
+            const config = {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'turn:turnserver.example.com', username: 'user', credential: 'password' }
+                ]
+            };
+
+            peerConnection = new RTCPeerConnection(config);
+
+            // Set up ICE candidate handling
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.send(JSON.stringify({ type: 'ice-candidate', candidate: event.candidate }));
+                }
+            };
+
+            // Set up remote stream handling
+            peerConnection.ontrack = (event) => {
+                videoElement.srcObject = event.streams[0];
+                if (cast.framework.CastContext.getInstance().getSessionState() === cast.framework.SessionState.SESSION_STARTED) {
+                    sendStreamToCastDevice(event.streams[0]);
+                }
+            };
+        }
+
+        // Handle incoming signaling messages
+        function handleSignalingMessage(message) {
+            if (message.type === 'offer') {
+                handleOffer(message);
+            } else if (message.type === 'answer') {
+                handleAnswer(message);
+            } else if (message.type === 'ice-candidate') {
+                handleIceCandidate(message);
+            }
+        }
+
+        // Handle incoming offer
+        async function handleOffer(offer) {
+            createPeerConnection();
+
+            // Set the remote description (SDP)
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(offer.sdp));
+
+            // Create an answer
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            // Send the answer to the signaling server
+            socket.send(JSON.stringify({ type: 'answer', sdp: answer }));
+        }
+
+        // Handle incoming answer
+        function handleAnswer(answer) {
+            const remoteDescription = new RTCSessionDescription(answer.sdp);
+            peerConnection.setRemoteDescription(remoteDescription);
+        }
+
+        // Handle incoming ICE candidate
+        function handleIceCandidate(candidate) {
+            peerConnection.addIceCandidate(new RTCIceCandidate(candidate));
+        }
+
+        // Send the media stream to the Cast device (Android TV)
+        function sendStreamToCastDevice(stream) {
+            const mediaInfo = new cast.framework.messages.MediaInfo('webrtc://stream', 'video/mp4');
+            const request = new cast.framework.messages.LoadRequest(mediaInfo);
+            const session = cast.framework.CastContext.getInstance().getCurrentSession();
+            session.loadMedia(request)
+                .then(() => {
+                    console.log('Cast media loaded');
+                })
+                .catch((error) => {
+                    console.log('Error casting media: ', error);
+                });
+        }
+
+        // Initialize Cast API when page loads
+        window.onload = () => {
+            initializeCastApi();
+            createPeerConnection();
+        };
+    </script>
 </body>
 </html>
